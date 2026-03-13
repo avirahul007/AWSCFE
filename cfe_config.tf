@@ -6,7 +6,6 @@ resource "null_resource" "deploy_cfe_bigip1" {
     aws_network_interface_attachment.ext_attach,
     aws_network_interface_attachment.int_attach,
     aws_ec2_tag.route_table_tag,
-    null_resource.configure_cfe_bigip1,
     aws_vpc_endpoint.ec2,
     aws_vpc_endpoint.s3,
     aws_s3_bucket.cfe_state_bucket
@@ -34,7 +33,6 @@ resource "null_resource" "deploy_cfe_bigip2" {
     aws_network_interface_attachment.ext_attach,
     aws_network_interface_attachment.int_attach,
     aws_ec2_tag.route_table_tag,
-    null_resource.configure_cfe_bigip1,
     aws_vpc_endpoint.ec2,
     aws_vpc_endpoint.s3,
     aws_s3_bucket.cfe_state_bucket

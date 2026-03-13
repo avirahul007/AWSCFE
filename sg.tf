@@ -1,16 +1,91 @@
 data "aws_region" "current" {}
-# Update existing Security Group for EC2 Endpoint
 
-### Very Important: Sir, if you have created SG using your TF code so ensure this below rule is added to your existing code from where SG was created and applied to BIGIPs, 
-##otherwise it will delete this existing rule and configure only this rule
+# Management Security Group
+resource "aws_security_group" "mgmt_sg" {
+  name        = "bigip-mgmt-sg"
+  vpc_id      = var.vpc_id
+  description = "Allow Management and SSH traffic"
 
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.mgmt_allow_ips
+  }
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.mgmt_allow_ips
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = { Name = "bigip-mgmt-sg" }
+}
+
+# External Security Group
+resource "aws_security_group" "ext_sg" {
+  name        = "bigip-ext-sg"
+  vpc_id      = var.vpc_id
+  description = "Allow inbound VIP traffic"
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.ext_allow_ips
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = { Name = "bigip-ext-sg" }
+}
+
+# Internal Security Group
+resource "aws_security_group" "int_sg" {
+  name        = "bigip-int-sg"
+  vpc_id      = var.vpc_id
+  description = "Allow internal VPC traffic"
+
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = { Name = "bigip-int-sg" }
+}
+
+# VPC Endpoint Security Group
 resource "aws_security_group" "vpc_endpoint_sg" {
   name        = "vpc-endpoint-sg"
   vpc_id      = var.vpc_id
+  description = "Allow CFE API calls from BIG-IPs"
+
   ingress {
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
-    security_groups = [var.bigip_sg_id]
+    security_groups = [aws_security_group.mgmt_sg.id, aws_security_group.int_sg.id]
   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = { Name = "vpc-endpoint-sg" }
 }
