@@ -91,9 +91,20 @@ variable "bigip2_mgmt_ip" {
 
 variable "bigip_admin_user" { 
     type = string 
+    default = "admin"
 }
 
 variable "bigip_admin_password" { 
     type = string 
     sensitive = true 
+}
+
+variable "do_url" { 
+    type    = string
+    default = "https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.36.1/f5-declarative-onboarding-1.36.1-2.noarch.rpm" 
+}
+
+variable "bigip_internal_self_ips" { 
+    type        = list(string)
+    description = "Primary private IPs for the Internal ENIs (e.g., ['10.0.3.100', '10.0.3.101'])"
 }

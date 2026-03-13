@@ -16,25 +16,37 @@ tmsh save sys config
 
 # 1. License the BIG-IP
 echo "Applying License: ${license_key}"
-tmsh install sys license registration-key ${license_key}
 
-# 2. Download CFE from GitHub
-echo "Downloading CFE from ${cfe_url}"
+for i in {1..10}; do
+    tmsh install sys license registration-key ${license_key}
+    
+    # Check if the command was successful
+    if [ $? -eq 0 ]; then
+        echo "License installed successfully on attempt $i!"
+        break
+    else
+        echo "License installation failed (Waiting for Internet/EIP). Retrying in 30 seconds... ($i/10)"
+        sleep 40
+    fi
+done
+
+echo "Downloading DO and CFE packages..."
 mkdir -p /var/config/rest/downloads
 curl -L -o /var/config/rest/downloads/f5-cloud-failover.rpm "${cfe_url}"
+curl -L -o /var/config/rest/downloads/f5-declarative-onboarding.rpm "${do_url}"
 
-# Wait for the REST framework (restjavad) to be fully up before attempting installation
+# Wait for the REST framework (restjavad) to be fully up
 echo "Waiting for restjavad to start..."
 until curl -s -u admin:${admin_pass} http://localhost:8100/mgmt/shared/echo | grep "build"; do
     sleep 10
 done
 
-# 3. Install CFE via REST API
-echo "Installing Cloud Failover Extension..."
+# 4. Install DO and CFE via REST API
+echo "Installing Extensions..."
 curl -u admin:${admin_pass} -X POST http://localhost:8100/mgmt/shared/iapp/package-management-tasks \
-  -d '{
-    "operation": "INSTALL",
-    "packageFilePath": "/var/config/rest/downloads/f5-cloud-failover.rpm"
-  }'
+  -d '{ "operation": "INSTALL", "packageFilePath": "/var/config/rest/downloads/f5-declarative-onboarding.rpm" }'
+
+curl -u admin:${admin_pass} -X POST http://localhost:8100/mgmt/shared/iapp/package-management-tasks \
+  -d '{ "operation": "INSTALL", "packageFilePath": "/var/config/rest/downloads/f5-cloud-failover.rpm" }'
 
 echo "Onboarding script completed."
