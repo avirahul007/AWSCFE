@@ -1,0 +1,223 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Deploy 2 BIG-IPs with Automated Licensing, CFE Installation, and HA Clustering via Public API.",
+  "Parameters": {
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "The ID of your existing VPC."
+    },
+    "BigIpAmiId": {
+      "Type": "AWS::EC2::Image::Id",
+      "Description": "The standard F5 BIG-IP AMI ID for your region."
+    },
+    "InstanceType": {
+      "Type": "String",
+      "Default": "m5.xlarge",
+      "AllowedValues": ["m5.large", "m5.xlarge", "m5.2xlarge", "c5.xlarge"]
+    },
+    "KeyPairName": {
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "AdminPassword": {
+      "Type": "String",
+      "NoEcho": true,
+      "Description": "The admin password for BIG-IP GUI/SSH access."
+    },
+    "BigIp1LicenseKey": {
+      "Type": "String",
+      "Description": "F5 Registration Key for BIG-IP 1 (e.g., AAAAA-BBBBB-CCCCC-DDDDD-EEEEEEE)"
+    },
+    "BigIp2LicenseKey": {
+      "Type": "String",
+      "Description": "F5 Registration Key for BIG-IP 2"
+    },
+    "Az1SubnetId": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "Subnet ID for BIG-IP 1 (Must have internet access to reach F5 License Server)."
+    },
+    "BigIp1PrivateIp": {
+      "Type": "String",
+      "Description": "A static Private IP available in Subnet 1 for BIG-IP 1 (e.g., 10.0.1.10)."
+    },
+    "Az2SubnetId": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "Subnet ID for BIG-IP 2."
+    },
+    "BigIp2PrivateIp": {
+      "Type": "String",
+      "Description": "A static Private IP available in Subnet 2 for BIG-IP 2 (e.g., 10.0.2.10)."
+    },
+    "CfeLabel": {
+      "Type": "String",
+      "Default": "cfe-failover-active-standby"
+    }
+  },
+  "Resources": {
+    "CfeStateBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "Tags": [
+          { "Key": "f5_cloud_failover_label", "Value": { "Ref": "CfeLabel" } },
+          { "Key": "Name", "Value": "f5-cfe-state-bucket" }
+        ]
+      }
+    },
+    "BigIpCfeRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{ "Effect": "Allow", "Principal": { "Service": ["ec2.amazonaws.com"] }, "Action": ["sts:AssumeRole"] }]
+        }
+      }
+    },
+    "BigIpCfePolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "BigIpCfeAccessPolicy",
+        "Roles": [{ "Ref": "BigIpCfeRole" }],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:DescribeInstances", "ec2:DescribeInstanceStatus", "ec2:DescribeAddresses",
+                "ec2:AssociateAddress", "ec2:DisassociateAddress", "ec2:DescribeNetworkInterfaces",
+                "ec2:DescribeNetworkInterfaceAttribute", "ec2:DescribeRouteTables", "ec2:ReplaceRoute",
+                "ec2:AssignPrivateIpAddresses", "ec2:UnassignPrivateIpAddresses"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": ["s3:ListBucket", "s3:GetBucketTagging"],
+              "Resource": { "Fn::GetAtt": ["CfeStateBucket", "Arn"] }
+            },
+            {
+              "Effect": "Allow",
+              "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+              "Resource": { "Fn::Sub": "${CfeStateBucket.Arn}/*" }
+            }
+          ]
+        }
+      }
+    },
+    "BigIpInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [{ "Ref": "BigIpCfeRole" }]
+      }
+    },
+    "BigIpSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Allow management and data traffic to BIG-IPs",
+        "VpcId": { "Ref": "VpcId" },
+        "SecurityGroupIngress": [
+          { "IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "CidrIp": "0.0.0.0/0" },
+          { "IpProtocol": "tcp", "FromPort": 22, "ToPort": 22, "CidrIp": "0.0.0.0/0" },
+          { "IpProtocol": "tcp", "FromPort": 4353, "ToPort": 4353, "CidrIp": "10.0.0.0/8" }
+        ]
+      }
+    },
+    "BigIpInstance1": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "ImageId": { "Ref": "BigIpAmiId" },
+        "InstanceType": { "Ref": "InstanceType" },
+        "KeyName": { "Ref": "KeyPairName" },
+        "IamInstanceProfile": { "Ref": "BigIpInstanceProfile" },
+        "NetworkInterfaces": [
+          {
+            "DeviceIndex": "0",
+            "SubnetId": { "Ref": "Az1SubnetId" },
+            "GroupSet": [{ "Ref": "BigIpSecurityGroup" }],
+            "PrivateIpAddress": { "Ref": "BigIp1PrivateIp" },
+            "AssociatePublicIpAddress": true
+          }
+        ],
+        "Tags": [
+          { "Key": "Name", "Value": "BIGIP-Active-AZ1" },
+          { "Key": "f5_cloud_failover_label", "Value": { "Ref": "CfeLabel" } }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": ["\n", [
+              "#!/bin/bash",
+              "exec > /var/log/userdata.log 2>&1",
+              "echo 'Waiting for F5 MCPD to start...'",
+              "source /usr/lib/bigstart/bigip-ready-functions",
+              "wait_bigip_ready",
+              "echo 'Setting Admin Password...'",
+              {"Fn::Sub": "tmsh modify auth user admin password '${AdminPassword}'"},
+              "echo 'Licensing BIG-IP with F5 Server...'",
+              {"Fn::Sub": "tmsh install sys license registration-key ${BigIp1LicenseKey}"},
+              "sleep 15",
+              "LOCAL_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)",
+              "tmsh modify sys global-settings hostname bigip1.local",
+              "tmsh mv cm device $(tmsh list cm device | grep 'cm device' | cut -d ' ' -f 3) name bigip1.local",
+              "tmsh modify cm device bigip1.local configsync-ip $LOCAL_IP unicast-address { { ip $LOCAL_IP } }",
+              "echo 'Installing Cloud Failover Extension (CFE)...'",
+              "curl -L -o /var/tmp/cfe.rpm https://github.com/F5Networks/f5-cloud-failover-extension/releases/download/v1.33.0/f5-cloud-failover-1.33.0-0.noarch.rpm",
+              {"Fn::Sub": "curl -sk -u admin:'${AdminPassword}' -X POST https://localhost/mgmt/shared/iapp/package-management-tasks -d '{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/tmp/cfe.rpm\"}'"},
+              "echo 'Establishing HA Trust with BIG-IP 2...'",
+              {"Fn::Sub": "while ! tmsh modify cm trust-domain Root ca-devices add { ${BigIp2PrivateIp} } name bigip2.local password '${AdminPassword}'; do echo 'Waiting for BIG-IP 2 to come online...'; sleep 15; done"},
+              "tmsh create cm device-group HA-Group type sync-failover devices add { bigip1.local bigip2.local } auto-sync enabled",
+              "tmsh save sys config",
+              "echo 'BIG-IP 1 Bootstrapping Complete!'"
+            ]]
+          }
+        }
+      }
+    },
+    "BigIpInstance2": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "ImageId": { "Ref": "BigIpAmiId" },
+        "InstanceType": { "Ref": "InstanceType" },
+        "KeyName": { "Ref": "KeyPairName" },
+        "IamInstanceProfile": { "Ref": "BigIpInstanceProfile" },
+        "NetworkInterfaces": [
+          {
+            "DeviceIndex": "0",
+            "SubnetId": { "Ref": "Az2SubnetId" },
+            "GroupSet": [{ "Ref": "BigIpSecurityGroup" }],
+            "PrivateIpAddress": { "Ref": "BigIp2PrivateIp" },
+            "AssociatePublicIpAddress": true
+          }
+        ],
+        "Tags": [
+          { "Key": "Name", "Value": "BIGIP-Standby-AZ2" },
+          { "Key": "f5_cloud_failover_label", "Value": { "Ref": "CfeLabel" } }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": ["\n", [
+              "#!/bin/bash",
+              "exec > /var/log/userdata.log 2>&1",
+              "source /usr/lib/bigstart/bigip-ready-functions",
+              "wait_bigip_ready",
+              {"Fn::Sub": "tmsh modify auth user admin password '${AdminPassword}'"},
+              {"Fn::Sub": "tmsh install sys license registration-key ${BigIp2LicenseKey}"},
+              "sleep 15",
+              "LOCAL_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)",
+              "tmsh modify sys global-settings hostname bigip2.local",
+              "tmsh mv cm device $(tmsh list cm device | grep 'cm device' | cut -d ' ' -f 3) name bigip2.local",
+              "tmsh modify cm device bigip2.local configsync-ip $LOCAL_IP unicast-address { { ip $LOCAL_IP } }",
+              "curl -L -o /var/tmp/cfe.rpm https://github.com/F5Networks/f5-cloud-failover-extension/releases/download/v1.33.0/f5-cloud-failover-1.33.0-0.noarch.rpm",
+              {"Fn::Sub": "curl -sk -u admin:'${AdminPassword}' -X POST https://localhost/mgmt/shared/iapp/package-management-tasks -d '{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/tmp/cfe.rpm\"}'"},
+              "tmsh save sys config"
+            ]]
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "CfeS3BucketName": { "Value": { "Ref": "CfeStateBucket" } },
+    "BigIp1MgmtIp": { "Value": { "Fn::GetAtt": ["BigIpInstance1", "PublicIp"] } },
+    "BigIp2MgmtIp": { "Value": { "Fn::GetAtt": ["BigIpInstance2", "PublicIp"] } }
+  }
+}
