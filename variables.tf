@@ -101,7 +101,7 @@ variable "bigip_admin_password" {
 
 variable "do_url" { 
     type    = string
-    default = "https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.36.1/f5-declarative-onboarding-1.36.1-2.noarch.rpm" 
+    default = "https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.47.0/f5-declarative-onboarding-1.47.0-14.noarch.rpm" 
 }
 
 variable "bigip_internal_self_ips" { 
