@@ -1,5 +1,3 @@
-data "aws_region" "current" {}
-
 # Tag Route Tables
 resource "aws_ec2_tag" "route_table_tag" {
   count       = length(var.route_table_ids)

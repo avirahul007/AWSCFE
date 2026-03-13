@@ -1,4 +1,3 @@
-data "aws_region" "current" {}
 # IAM Role & Policy for BIG-IPs
 
 resource "aws_iam_role" "bigip_cfe_role" {

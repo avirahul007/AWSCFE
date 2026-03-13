@@ -11,12 +11,14 @@ resource "aws_instance" "bigip" {
     aws_s3_bucket.cfe_state_bucket
   ]
   # 1. Primary Network Interface (Management - Index 0)
-  primary_network_interface {
+  network_interface {
     network_interface_id = aws_network_interface.mgmt[count.index].id
+    device_index = 0
   }
   user_data = templatefile("${path.module}/templates/f5_onboard.sh", {
     license_key = var.license_keys[count.index]
     cfe_url     = var.cfe_url
+    admin_pass  = var.bigip_admin_password
   })
   tags = {
     Name = "f5-bigip-${count.index + 1}"

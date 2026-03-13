@@ -48,7 +48,7 @@ variable "license_keys" {
 
 variable "cfe_url" { 
     type = string 
-    default = "https://github.com/F5Networks/f5-cloud-failover-extension/releases/download/v1.14.0/f5-cloud-failover-1.14.0-0.noarch.rpm" 
+    default = "https://github.com/F5Networks/f5-cloud-failover-extension/releases/download/v2.4.0/f5-cloud-failover-2.4.0-0.noarch.rpm" 
 }
 
 # Security Group Allowed IPs

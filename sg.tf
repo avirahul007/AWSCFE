@@ -1,5 +1,3 @@
-data "aws_region" "current" {}
-
 # Management Security Group
 resource "aws_security_group" "mgmt_sg" {
   name        = "bigip-mgmt-sg"
@@ -9,6 +7,12 @@ resource "aws_security_group" "mgmt_sg" {
   ingress {
     from_port   = 443
     to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.mgmt_allow_ips
+  }
+  ingress {
+    from_port   = 8443
+    to_port     = 8443
     protocol    = "tcp"
     cidr_blocks = var.mgmt_allow_ips
   }
@@ -36,6 +40,12 @@ resource "aws_security_group" "ext_sg" {
   ingress {
     from_port   = 443
     to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.ext_allow_ips
+  }
+  ingress {
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = var.ext_allow_ips
   }

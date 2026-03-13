@@ -1,6 +1,6 @@
 # You can pass the provider and the backup (.tfstate location) under this file 
 
-provider "hashicorp/aws" {
+provider "aws" {
   region = var.aws_region
 }
 
