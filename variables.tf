@@ -1,5 +1,5 @@
 variable "aws_region" { 
-    type = string,
+    type = string
     default = "eu-west-1" 
 }
 
@@ -34,7 +34,8 @@ variable "f5_ami_id" {
 }
 
 variable "instance_type" { 
-    type = string, default = "m5.xlarge" 
+    type = string 
+    default = "m5.xlarge" 
 }
 
 variable "key_name" { 
@@ -46,7 +47,7 @@ variable "license_keys" {
 }
 
 variable "cfe_url" { 
-    type = string, 
+    type = string 
     default = "https://github.com/F5Networks/f5-cloud-failover-extension/releases/download/v1.14.0/f5-cloud-failover-1.14.0-0.noarch.rpm" 
 }
 
@@ -57,7 +58,7 @@ variable "mgmt_allow_ips" {
 }
 
 variable "ext_allow_ips" { 
-    type = list(string), 
+    type = list(string) 
     default = ["0.0.0.0/0"] 
 }
 
@@ -68,8 +69,8 @@ variable "route_table_ids" {
 }
 
 variable "cfe_label" { 
-    type = string,
-    default = ["cfe-failover-active-standby"]
+    type    = string
+    default = "cfe-failover-active-standby"
 }
 
 variable "vip_subnet_ranges" { 
@@ -93,6 +94,6 @@ variable "bigip_admin_user" {
 }
 
 variable "bigip_admin_password" { 
-    type = string, 
+    type = string 
     sensitive = true 
 }

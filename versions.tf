@@ -8,7 +8,7 @@ terraform {
     }
     null = {
       source  = "hashicorp/null"
-      version = "~> 3.2"                ### You can choose as per your desire version. Sir you can go to terraform website and see the versioning of null provider
+      version = "~> 3.2"                ### You can choose as per your desire version. ## you can go to terraform website and see the versioning of null provider
     }
   }
 }
