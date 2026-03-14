@@ -11,7 +11,7 @@ wait_bigip_ready
 
 # 2. Set the Admin Password immediately
 echo "Setting Admin Password..."
-tmsh modify auth user admin password ${bigip_admin_password}
+tmsh modify auth user admin password ${admin_pass}
 tmsh save sys config
 
 # 3. Apply License with Retry Loop
