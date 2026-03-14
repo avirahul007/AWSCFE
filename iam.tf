@@ -22,7 +22,7 @@ resource "aws_iam_policy" "bigip_cfe_policy" {
         Effect   = "Allow"
         Action   = ["s3:ListAllMyBuckets"]
         Resource = "*"
-        Condition = { StringEquals = { "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id } }
+        Condition = { StringEquals = { "aws:PrincipalAccount" = var.aws_account_id } }
       },
       # 2. S3 Bucket Level Access
       {
@@ -55,8 +55,8 @@ resource "aws_iam_policy" "bigip_cfe_policy" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "aws:RequestedRegion"  = data.aws_region.current.name,
-            "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id
+            "aws:RequestedRegion"  = var.aws_region,
+            "aws:PrincipalAccount" = var.aws_account_id
           }
         }
       },
@@ -68,16 +68,16 @@ resource "aws_iam_policy" "bigip_cfe_policy" {
           "ec2:AssignPrivateIpAddresses", "ec2:UnassignPrivateIpAddresses"
         ]
         Resource = concat(
-          formatlist("arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:elastic-ip/%s", aws_eip.mgmt_eip[*].id),
-          formatlist("arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/%s", aws_network_interface.external[*].id),
-          formatlist("arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/%s", aws_instance.bigip[*].id)
+          formatlist("arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:elastic-ip/%s", aws_eip.mgmt_eip[*].id),
+          formatlist("arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:network-interface/%s", aws_network_interface.external[*].id),
+          formatlist("arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:instance/%s", aws_instance.bigip[*].id)
         )
       },
       # 7. EC2 Routing (Strictly targeted to YOUR Route Tables)
       {
         Effect   = "Allow"
         Action   = ["ec2:CreateRoute", "ec2:ReplaceRoute"]
-        Resource = formatlist("arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:route-table/%s", var.route_table_ids)
+        Resource = formatlist("arn:aws:ec2:${var.aws_region}:${var.aws_account_id}:route-table/%s", var.route_table_ids)
       }
     ]
   })
