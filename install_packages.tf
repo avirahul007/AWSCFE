@@ -17,12 +17,12 @@ resource "null_resource" "install_packages_bigip1" {
       # ---------------------------------------------------------
       # 1. DECLARATIVE ONBOARDING (DO)
       # ---------------------------------------------------------
-      FN_DO="f5-declarative-onboarding.rpm"
+      FN_DO="f5-declarative-onboarding-1.47.0-14.noarch.rpm"
       echo "Downloading $FN_DO locally..."
-      curl -sL -o $FN_DO "${var.do_url}"
+      curl -k -L -O "${var.do_url}"
       
       # Cross-platform byte count (Works on Mac & Linux)
-      LEN_DO=$(wc -c < $FN_DO | tr -d ' ')
+      LEN_DO=$(wc -c $FN | cut -f 2 -d ' ')
 
       echo "Uploading $FN_DO to BIG-IP 1..."
       curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_DO" \
@@ -42,11 +42,11 @@ resource "null_resource" "install_packages_bigip1" {
       # ---------------------------------------------------------
       # 2. CLOUD FAILOVER EXTENSION (CFE)
       # ---------------------------------------------------------
-      FN_CFE="f5-cloud-failover.rpm"
+      FN_CFE="f5-cloud-failover-2.4.0-0.noarch.rpm"
       echo "Downloading $FN_CFE locally..."
-      curl -sL -o $FN_CFE "${var.cfe_url}"
+      curl -k -L -O "${var.cfe_url}"
       
-      LEN_CFE=$(wc -c < $FN_CFE | tr -d ' ')
+      LEN_CFE=$(wc -c $FN | cut -f 1 -d ' ')
 
       echo "Uploading $FN_CFE to BIG-IP 1..."
       curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_CFE" \
@@ -97,9 +97,9 @@ resource "null_resource" "install_packages_bigip2" {
       until curl -sk -u $CREDS "https://$IP/mgmt/shared/echo" | grep -q "build"; do sleep 15; done
 
       # We can reuse the locally downloaded RPM files from BIG-IP 1
-      FN_DO="f5-declarative-onboarding.rpm"
-      LEN_DO=$(wc -c < $FN_DO | tr -d ' ')
-
+      FN_DO="f5-declarative-onboarding-1.47.0-14.noarch.rpm"
+      LEN_DO=$(wc -c $FN | cut -f 2 -d ' ')
+      
       echo "Uploading $FN_DO to BIG-IP 2..."
       curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_DO" \
         -H 'Content-Type: application/octet-stream' \
@@ -115,8 +115,12 @@ resource "null_resource" "install_packages_bigip2" {
         -H 'Content-Type: application/json;charset=UTF-8' \
         --data "$DATA_DO"
 
-      FN_CFE="f5-cloud-failover.rpm"
-      LEN_CFE=$(wc -c < $FN_CFE | tr -d ' ')
+      # ---------------------------------------------------------
+      # 2. CLOUD FAILOVER EXTENSION (CFE)
+      # ---------------------------------------------------------
+      FN_CFE="f5-cloud-failover-2.4.0-0.noarch.rpm"    
+      LEN_CFE=$(wc -c $FN | cut -f 1 -d ' ')
+
 
       echo "Uploading $FN_CFE to BIG-IP 2..."
       curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_CFE" \
