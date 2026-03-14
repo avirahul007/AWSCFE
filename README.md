@@ -54,17 +54,10 @@ The ALB is a valid choice for simple HTTP/HTTPS Layer 7 load balancing of web ap
 
 | Capability | F5 BIG-IP + CFE | AWS ALB |
 |---|---|---|
-| **Protocol support** | Any TCP/UDP, SSL/TLS, HTTP/1, HTTP/2, HTTP/3, WebSockets, FIX, DIAMETER, SIP, DNS | HTTP and HTTPS only (Layer 7) |
-| **SSL/TLS offload & re-encrypt** | Full hardware-accelerated TLS proxy with cipher control, FIPS 140-2 HSM support | Basic TLS termination; no re-encryption control |
-| **Web Application Firewall** | BIG-IP ASM (Advanced WAF) with OWASP Top 10, bot detection, API protection, L7 DDoS | AWS WAF add-on; no native DDoS mitigation |
-| **Scripting & iRules** | Full Tcl-based iRules engine for custom traffic manipulation, header injection, protocol rewrites | Limited action rules; no custom scripting |
 | **IP address mobility** | VIPs follow the Active node; clients connect to a fixed IP address | ALB uses a DNS name; clients must tolerate DNS TTL delays during scaling/failover |
 | **Route table control** | CFE directly updates AWS routing to steer return traffic (asymmetric routing fix) | No route table management |
 | **Failover RTO** | Typically 10–30 seconds (heartbeat detection + CFE API execution) | Multi-AZ failover handled by AWS; no BIG-IP-level HA |
-| **Stateful session persistence** | Full connection mirroring to the Standby; sessions survive failover | No connection state mirroring |
 | **Network segmentation** | BIG-IP bridges external, DMZ, and internal segments; traffic never bypasses the device | ALB operates within a single VPC tier |
-| **Compliance** | FIPS, PCI-DSS, HIPAA certified appliance profiles available | Shared-responsibility model; AWS certification |
-| **Operational model** | Single pane of glass (TMOS) for all traffic policies, certs, and monitoring | Separate services (ALB, WAF, Shield, Route 53) must be stitched together |
 
 **The fundamental difference:** An ALB is a **cloud-managed shared service** that AWS scales behind a DNS name. A BIG-IP pair with CFE is a **dedicated traffic proxy** you control entirely — the IP addresses are yours, the policy is yours, and failover is a deterministic API event you can observe and test.
 
@@ -125,10 +118,9 @@ An **Interface Endpoint** provisions an ENI inside your subnet with a private IP
 | Benefit | Detail |
 |---|---|
 | **Security** | Failover API calls are never exposed to the internet. No data traverses a public endpoint. |
-| **Cost** | Eliminates NAT Gateway charges (~$0.045/hr per AZ + $0.045/GB processed). |
 | **Reliability** | Removes the Internet Gateway and NAT Gateway from the failover critical path. Fewer components = fewer failure modes. |
 | **Compliance** | Satisfies air-gapped and network-isolated architecture requirements (PCI-DSS, FedRAMP, HIPAA). |
-| **Auditability** | VPC Flow Logs capture all traffic to and from the Interface Endpoint ENI for forensic review. |
+| **Visibility** | VPC Flow Logs capture all traffic to and from the Interface Endpoint ENI for forensic review. |
 
 ---
 
