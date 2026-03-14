@@ -18,6 +18,8 @@ resource "aws_instance" "bigip" {
   }
   user_data = templatefile("${path.module}/templates/f5_onboard.sh", {
     license_key = var.license_keys[count.index]
+    do_url               = var.do_url 
+    cfe_url              = var.cfe_url
     admin_pass  = var.bigip_admin_password
   })
   tags = {

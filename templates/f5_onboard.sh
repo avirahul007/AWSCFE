@@ -31,4 +31,11 @@ done
 echo "Restarting restjavad and restnoded..."
 bigstart restart restjavad restnoded
 
+# NEW: Download DO and CFE packages directly to BIG-IP
+echo "Downloading DO and CFE packages locally to BIG-IP..."
+cd /var/config/rest/downloads
+curl -k -L -O "${var.do_url}"
+curl -k -L -O "${var.cfe_url}"
+
 echo "Base Onboarding script completed. Handing over to Terraform for package installation."
+

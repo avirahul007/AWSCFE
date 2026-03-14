@@ -1,3 +1,7 @@
+
+
+===========
+
 # Download, Upload, Install, and Verify Packages for BIG-IP 1
 resource "null_resource" "install_packages_bigip1" {
   depends_on = [aws_instance.bigip, aws_eip.mgmt_eip]
@@ -18,19 +22,7 @@ resource "null_resource" "install_packages_bigip1" {
       # 1. DECLARATIVE ONBOARDING (DO)
       # ---------------------------------------------------------
       FN_DO="f5-declarative-onboarding-1.47.0-14.noarch.rpm"
-      echo "Downloading $FN_DO locally..."
-      curl -k -L -O "${var.do_url}"
-      
-      # Cross-platform byte count (Works on Mac & Linux)
       LEN_DO=$(wc -c $FN | cut -f 2 -d ' ')
-
-      echo "Uploading $FN_DO to BIG-IP 1..."
-      curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_DO" \
-        -H 'Content-Type: application/octet-stream' \
-        -H "Content-Range: 0-$((LEN_DO - 1))/$LEN_DO" \
-        -H "Content-Length: $LEN_DO" \
-        -H 'Connection: keep-alive' \
-        --data-binary @$FN_DO
 
       echo "Installing DO Package on BIG-IP 1..."
       DATA_DO="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/$FN_DO\"}"
@@ -43,18 +35,7 @@ resource "null_resource" "install_packages_bigip1" {
       # 2. CLOUD FAILOVER EXTENSION (CFE)
       # ---------------------------------------------------------
       FN_CFE="f5-cloud-failover-2.4.0-0.noarch.rpm"
-      echo "Downloading $FN_CFE locally..."
-      curl -k -L -O "${var.cfe_url}"
-      
       LEN_CFE=$(wc -c $FN | cut -f 1 -d ' ')
-
-      echo "Uploading $FN_CFE to BIG-IP 1..."
-      curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_CFE" \
-        -H 'Content-Type: application/octet-stream' \
-        -H "Content-Range: 0-$((LEN_CFE - 1))/$LEN_CFE" \
-        -H "Content-Length: $LEN_CFE" \
-        -H 'Connection: keep-alive' \
-        --data-binary @$FN_CFE
 
       echo "Installing CFE Package on BIG-IP 1..."
       DATA_CFE="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/$FN_CFE\"}"
@@ -82,7 +63,8 @@ resource "null_resource" "install_packages_bigip1" {
 
 # Download, Upload, Install, and Verify Packages for BIG-IP 2
 resource "null_resource" "install_packages_bigip2" {
-  depends_on = [aws_instance.bigip, aws_eip.mgmt_eip]
+  # ADDED DEPENDENCY: Must wait for BIG-IP 1 to finish downloading the RPMs!
+  depends_on = [aws_instance.bigip, aws_eip.mgmt_eip, null_resource.install_packages_bigip1]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
@@ -99,14 +81,6 @@ resource "null_resource" "install_packages_bigip2" {
       # We can reuse the locally downloaded RPM files from BIG-IP 1
       FN_DO="f5-declarative-onboarding-1.47.0-14.noarch.rpm"
       LEN_DO=$(wc -c $FN | cut -f 2 -d ' ')
-      
-      echo "Uploading $FN_DO to BIG-IP 2..."
-      curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_DO" \
-        -H 'Content-Type: application/octet-stream' \
-        -H "Content-Range: 0-$((LEN_DO - 1))/$LEN_DO" \
-        -H "Content-Length: $LEN_DO" \
-        -H 'Connection: keep-alive' \
-        --data-binary @$FN_DO
 
       echo "Installing DO Package on BIG-IP 2..."
       DATA_DO="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/$FN_DO\"}"
@@ -120,15 +94,6 @@ resource "null_resource" "install_packages_bigip2" {
       # ---------------------------------------------------------
       FN_CFE="f5-cloud-failover-2.4.0-0.noarch.rpm"    
       LEN_CFE=$(wc -c $FN | cut -f 1 -d ' ')
-
-
-      echo "Uploading $FN_CFE to BIG-IP 2..."
-      curl -kvu $CREDS "https://$IP/mgmt/shared/file-transfer/uploads/$FN_CFE" \
-        -H 'Content-Type: application/octet-stream' \
-        -H "Content-Range: 0-$((LEN_CFE - 1))/$LEN_CFE" \
-        -H "Content-Length: $LEN_CFE" \
-        -H 'Connection: keep-alive' \
-        --data-binary @$FN_CFE
 
       echo "Installing CFE Package on BIG-IP 2..."
       DATA_CFE="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/$FN_CFE\"}"
