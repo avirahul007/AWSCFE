@@ -16,6 +16,9 @@ locals {
       # Internal ConfigSync MUST use the private IPs
       configsync = { class = "ConfigSync", configsyncIp = var.bigip1_mgmt_ip }
       
+      failoverAddress = { class = "FailoverUnicast", address = var.bigip1_mgmt_ip, port = 1026 }
+      # --------------------------------------------------------------------------
+
       failoverGroup = {
         class           = "DeviceGroup"
         type            = "sync-failover"
@@ -50,14 +53,16 @@ locals {
       int_self = { class = "SelfIp", address = "${var.bigip_internal_self_ips[1]}/24", vlan = "int_vlan", allowService = "default" }
       
       configsync = { class = "ConfigSync", configsyncIp = var.bigip2_mgmt_ip }
+
+      failoverAddress = { class = "FailoverUnicast", address = var.bigip2_mgmt_ip, port = 1026 }
+      # --------------------------------------------------------------------------
     }
   }
 }
 
 # Push Configuration to BIG-IP 2 FIRST
 resource "null_resource" "deploy_do_bigip2" {
-  depends_on = [aws_instance.bigip]
-
+  depends_on = [aws_instance.bigip, null_resource.install_packages_bigip2]
   provisioner "local-exec" {
     command = <<EOT
       until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done
@@ -85,8 +90,7 @@ resource "null_resource" "deploy_do_bigip2" {
 
 # Push Configuration to BIG-IP 1 SECOND
 resource "null_resource" "deploy_do_bigip1" {
-  depends_on = [null_resource.deploy_do_bigip2]
-
+  depends_on = [null_resource.deploy_do_bigip2, null_resource.install_packages_bigip1]
   provisioner "local-exec" {
     command = <<EOT
       until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done

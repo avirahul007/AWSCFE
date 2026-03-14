@@ -18,3 +18,22 @@ output "bigip_mgmt_ips" {
 output "bigip_instance_ids" {
   value = aws_instance.bigip[*].id
 }
+output "bigip1_do_verification" {
+  description = "JSON verification output of DO installation on BIG-IP 1"
+  value       = try(jsondecode(file("${path.module}/bigip1_do_info.json")), "Awaiting Terraform Apply to generate JSON...")
+}
+
+output "bigip1_cfe_verification" {
+  description = "JSON verification output of CFE installation on BIG-IP 1"
+  value       = try(jsondecode(file("${path.module}/bigip1_cfe_info.json")), "Awaiting Terraform Apply to generate JSON...")
+}
+
+output "bigip2_do_verification" {
+  description = "JSON verification output of DO installation on BIG-IP 2"
+  value       = try(jsondecode(file("${path.module}/bigip2_do_info.json")), "Awaiting Terraform Apply to generate JSON...")
+}
+
+output "bigip2_cfe_verification" {
+  description = "JSON verification output of CFE installation on BIG-IP 2"
+  value       = try(jsondecode(file("${path.module}/bigip2_cfe_info.json")), "Awaiting Terraform Apply to generate JSON...")
+}
