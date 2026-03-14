@@ -7,18 +7,29 @@ locals {
     Common = {
       class    = "Tenant"
       mySystem = { class = "System", hostname = "bigip1.local" }
+      ntp = {
+        class    = "NTP"
+        servers  = ["169.254.169.123"]
+        timezone = "UTC"
+      }
       ext_vlan = { class = "VLAN", interfaces = [{ name = "1.1", tagged = false }] }
       int_vlan = { class = "VLAN", interfaces = [{ name = "1.2", tagged = false }] }
       
       ext_self = { class = "SelfIp", address = "${var.bigip_external_self_ips[0]}/24", vlan = "ext_vlan", allowService = "default" }
       int_self = { class = "SelfIp", address = "${var.bigip_internal_self_ips[0]}/24", vlan = "int_vlan", allowService = "default" }
       
-      # Internal ConfigSync MUST use the private IPs
-      configsync = { class = "ConfigSync", configsyncIp = var.bigip1_mgmt_ip }
-      
-      failoverAddress = { class = "FailoverUnicast", address = var.bigip1_mgmt_ip, port = 1026 }
-      # --------------------------------------------------------------------------
+      # Explicitly route all VPC traffic locally, but DO NOT sync it across AZs
+      vpc_route = {
+        class     = "Route"
+        network   = var.vpc_cidr
+        gw        = cidrhost("${var.bigip_internal_self_ips[0]}/24", 1)
+        localOnly = true
+      }
 
+      # ConfigSync and Failover over Internal TMM Network
+      configsync      = { class = "ConfigSync", configsyncIp = var.bigip_internal_self_ips[0] }
+      failoverAddress = { class = "FailoverUnicast", address = var.bigip_internal_self_ips[0], port = 1026 }
+      
       failoverGroup = {
         class           = "DeviceGroup"
         type            = "sync-failover"
@@ -27,11 +38,13 @@ locals {
         autoSync        = true
         networkFailover = true
       }
+
+      # Device Trust established over Internal TMM Network
       trust = {
         class          = "DeviceTrust"
         localUsername  = "admin"
         localPassword  = var.bigip_admin_password
-        remoteHost     = var.bigip2_mgmt_ip
+        remoteHost     = var.bigip_internal_self_ips[1] 
         remoteUsername = "admin"
         remotePassword = var.bigip_admin_password
       }
@@ -46,16 +59,28 @@ locals {
     Common = {
       class    = "Tenant"
       mySystem = { class = "System", hostname = "bigip2.local" }
+      ntp = {
+        class    = "NTP"
+        servers  = ["169.254.169.123"]
+        timezone = "UTC"
+      }
       ext_vlan = { class = "VLAN", interfaces = [{ name = "1.1", tagged = false }] }
       int_vlan = { class = "VLAN", interfaces = [{ name = "1.2", tagged = false }] }
       
       ext_self = { class = "SelfIp", address = "${var.bigip_external_self_ips[1]}/24", vlan = "ext_vlan", allowService = "default" }
       int_self = { class = "SelfIp", address = "${var.bigip_internal_self_ips[1]}/24", vlan = "int_vlan", allowService = "default" }
-      
-      configsync = { class = "ConfigSync", configsyncIp = var.bigip2_mgmt_ip }
 
-      failoverAddress = { class = "FailoverUnicast", address = var.bigip2_mgmt_ip, port = 1026 }
-      # --------------------------------------------------------------------------
+      # Explicitly route all VPC traffic locally, but DO NOT sync it across AZs
+      vpc_route = {
+        class     = "Route"
+        network   = var.vpc_cidr
+        gw        = cidrhost("${var.bigip_internal_self_ips[1]}/24", 1)
+        localOnly = true
+      }
+      
+      # ConfigSync and Failover over Internal TMM Network
+      configsync      = { class = "ConfigSync", configsyncIp = var.bigip_internal_self_ips[1] }
+      failoverAddress = { class = "FailoverUnicast", address = var.bigip_internal_self_ips[1], port = 1026 }
     }
   }
 }
@@ -63,13 +88,11 @@ locals {
 # Push Configuration to BIG-IP 2 FIRST
 resource "null_resource" "deploy_do_bigip2" {
   depends_on = [aws_instance.bigip, null_resource.install_packages_bigip2]
+  
   provisioner "local-exec" {
     command = <<EOT
-      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done
-
-      cat > do_payload2.json <<EOF
-      ${jsonencode(local.do_payload_bigip2)}
-      EOF
+      # Write payload safely using echo to prevent indentation formatting bugs
+      echo '${jsonencode(local.do_payload_bigip2)}' > do_payload2.json
 
       echo "Pushing DO Declaration to BIG-IP 2 via Public IP..."
       curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
@@ -77,10 +100,9 @@ resource "null_resource" "deploy_do_bigip2" {
         -H "Content-Type: application/json" \
         -d @do_payload2.json
 
-      echo "Polling Async Task Status for BIG-IP 2 (Per F5 Docs)..."
+      echo "Polling Async Task Status for BIG-IP 2..."
       until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
         -X GET https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/declarative-onboarding/task | grep -q '"message":"success"\|"status":"FINISHED"'; do
-          echo "Waiting for DO to apply..."
           sleep 10
       done
       echo "BIG-IP 2 Networking Configured!"
@@ -91,13 +113,11 @@ resource "null_resource" "deploy_do_bigip2" {
 # Push Configuration to BIG-IP 1 SECOND
 resource "null_resource" "deploy_do_bigip1" {
   depends_on = [null_resource.deploy_do_bigip2, null_resource.install_packages_bigip1]
+  
   provisioner "local-exec" {
     command = <<EOT
-      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done
-
-      cat > do_payload1.json <<EOF
-      ${jsonencode(local.do_payload_bigip1)}
-      EOF
+      # Write payload safely using echo to prevent indentation formatting bugs
+      echo '${jsonencode(local.do_payload_bigip1)}' > do_payload1.json
 
       echo "Pushing DO Declaration to BIG-IP 1 via Public IP..."
       curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
@@ -105,10 +125,9 @@ resource "null_resource" "deploy_do_bigip1" {
         -H "Content-Type: application/json" \
         -d @do_payload1.json
 
-      echo "Polling Async Task Status for BIG-IP 1 HA Cluster (Per F5 Docs)..."
+      echo "Polling Async Task Status for BIG-IP 1 HA Cluster..."
       until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
         -X GET https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/declarative-onboarding/task | grep -q '"message":"success"\|"status":"FINISHED"'; do
-          echo "Waiting for DO to apply and Cluster to build..."
           sleep 10
       done
       echo "BIG-IP 1 HA Cluster Configured!"
