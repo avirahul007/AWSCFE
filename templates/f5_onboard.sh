@@ -28,13 +28,6 @@ for i in {1..10}; do
     fi
 done
 
-# 4. Allocate Extra Memory for REST Daemons
-echo "Allocating extra memory for REST daemons..."
-tmsh modify sys db provision.extramb value 1000 || true
-tmsh modify sys db restjavad.useextramb value true || true
-tmsh modify sys db provision.restjavad.extramb value 1000 || true
-tmsh save sys config
-
 echo "Restarting restjavad and restnoded..."
 bigstart restart restjavad restnoded
 
