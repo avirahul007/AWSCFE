@@ -1,7 +1,3 @@
-# Fetch current AWS Account ID and Region automatically
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
-
 # IAM Role
 resource "aws_iam_role" "bigip_cfe_role" {
   name = "bigip-cfe-role"
