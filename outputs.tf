@@ -11,8 +11,8 @@ output "ec2_endpoint_dns" {
 }
 
 output "bigip_mgmt_ips" {
-  value       = aws_instance.bigip[*].public_ip # Assuming mgmt has public IPs for access
-  description = "Management IPs for the BIG-IPs"
+  value       = aws_eip.mgmt_eip[*].public_ip # <-- Updated to pull strictly from the EIP resource
+  description = "Public Management IPs for the BIG-IPs"
 }
 
 output "bigip_instance_ids" {

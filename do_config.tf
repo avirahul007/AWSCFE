@@ -13,7 +13,8 @@ locals {
       ext_self = { class = "SelfIp", address = "${var.bigip_external_self_ips[0]}/24", vlan = "ext_vlan", allowService = "default" }
       int_self = { class = "SelfIp", address = "${var.bigip_internal_self_ips[0]}/24", vlan = "int_vlan", allowService = "default" }
       
-      configsync = { class = "ConfigSync", configsyncIp = var.bigip_internal_self_ips[0] }
+      # Internal ConfigSync MUST use the private IPs
+      configsync = { class = "ConfigSync", configsyncIp = var.bigip1_mgmt_ip }
       
       failoverGroup = {
         class           = "DeviceGroup"
@@ -34,7 +35,7 @@ locals {
     }
   }
 
-  # BIG-IP 2: Networking Only (It will be joined to the cluster by BIG-IP 1)
+  # BIG-IP 2: Networking Only
   do_payload_bigip2 = {
     schemaVersion = "1.0.0"
     class         = "Device"
@@ -48,48 +49,65 @@ locals {
       ext_self = { class = "SelfIp", address = "${var.bigip_external_self_ips[1]}/24", vlan = "ext_vlan", allowService = "default" }
       int_self = { class = "SelfIp", address = "${var.bigip_internal_self_ips[1]}/24", vlan = "int_vlan", allowService = "default" }
       
-      configsync = { class = "ConfigSync", configsyncIp = var.bigip_internal_self_ips[1] }
+      configsync = { class = "ConfigSync", configsyncIp = var.bigip2_mgmt_ip }
     }
   }
 }
 
-# Push Configuration to BIG-IP 2 FIRST (So its IPs are ready to be trusted)
+# Push Configuration to BIG-IP 2 FIRST
 resource "null_resource" "deploy_do_bigip2" {
   depends_on = [aws_instance.bigip]
 
   provisioner "local-exec" {
     command = <<EOT
-      # Wait for DO API to be available
-      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${var.bigip2_mgmt_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done
-      
-      cat <<'EOF' > do_payload2.json
+      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done
+
+      cat > do_payload2.json <<EOF
       ${jsonencode(local.do_payload_bigip2)}
       EOF
-      
+
+      echo "Pushing DO Declaration to BIG-IP 2 via Public IP..."
       curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
-           -X POST https://${var.bigip2_mgmt_ip}/mgmt/shared/declarative-onboarding \
-           -H "Content-type: application/json" \
-           -d @do_payload2.json
+        -X POST https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/declarative-onboarding \
+        -H "Content-Type: application/json" \
+        -d @do_payload2.json
+
+      echo "Polling Async Task Status for BIG-IP 2 (Per F5 Docs)..."
+      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
+        -X GET https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/declarative-onboarding/task | grep -q '"message":"success"\|"status":"FINISHED"'; do
+          echo "Waiting for DO to apply..."
+          sleep 10
+      done
+      echo "BIG-IP 2 Networking Configured!"
     EOT
   }
 }
 
-# Push Configuration to BIG-IP 1 SECOND (To initiate trust and build the cluster)
+# Push Configuration to BIG-IP 1 SECOND
 resource "null_resource" "deploy_do_bigip1" {
   depends_on = [null_resource.deploy_do_bigip2]
 
   provisioner "local-exec" {
     command = <<EOT
-      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${var.bigip1_mgmt_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done
-      
-      cat <<'EOF' > do_payload1.json
+      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/declarative-onboarding/info | grep "version"; do sleep 15; done
+
+      cat > do_payload1.json <<EOF
       ${jsonencode(local.do_payload_bigip1)}
       EOF
-      
+
+      echo "Pushing DO Declaration to BIG-IP 1 via Public IP..."
       curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
-           -X POST https://${var.bigip1_mgmt_ip}/mgmt/shared/declarative-onboarding \
-           -H "Content-type: application/json" \
-           -d @do_payload1.json
+        -X POST https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/declarative-onboarding \
+        -H "Content-Type: application/json" \
+        -d @do_payload1.json
+
+      echo "Polling Async Task Status for BIG-IP 1 HA Cluster (Per F5 Docs)..."
+      until curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
+        -X GET https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/declarative-onboarding/task | grep -q '"message":"success"\|"status":"FINISHED"'; do
+          echo "Waiting for DO to apply and Cluster to build..."
+          sleep 10
+      done
+      echo "BIG-IP 1 HA Cluster Configured!"
     EOT
   }
 }

@@ -8,7 +8,8 @@ resource "aws_instance" "bigip" {
     aws_iam_instance_profile.bigip_profile,
     aws_vpc_endpoint.s3,
     aws_vpc_endpoint.ec2,
-    aws_s3_bucket.cfe_state_bucket
+    aws_s3_bucket.cfe_state_bucket,
+    aws_eip.mgmt_eip
   ]
   # 1. Primary Network Interface (Management - Index 0)
   network_interface {

@@ -22,6 +22,24 @@ resource "aws_security_group" "mgmt_sg" {
     protocol    = "tcp"
     cidr_blocks = var.mgmt_allow_ips
   }
+
+  # --- REQUIRED FOR F5 HA CLUSTER OVER MANAGEMENT ---
+  # F5 ConfigSync (Requires TCP 4353)
+  ingress {
+    from_port   = 4353
+    to_port     = 4353
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr] # Allows the BIG-IPs to sync with each other
+  }
+  # F5 Network Failover Heartbeat (Requires UDP 1026)
+  ingress {
+    from_port   = 1026
+    to_port     = 1026
+    protocol    = "udp"
+    cidr_blocks = [var.vpc_cidr] # Allows the BIG-IPs to ping each other
+  }
+  # --------------------------------------------------
+
   egress {
     from_port   = 0
     to_port     = 0

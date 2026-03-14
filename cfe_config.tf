@@ -1,5 +1,3 @@
-# Ensures the AWS endpoints exist before configuring the BIG-IP , thats is the reason I have applied depends upon function before executing this local cfe for both BIGIPs
-
 resource "null_resource" "deploy_cfe_bigip1" {
   depends_on = [
     aws_instance.bigip,
@@ -10,22 +8,33 @@ resource "null_resource" "deploy_cfe_bigip1" {
     aws_vpc_endpoint.s3,
     aws_s3_bucket.cfe_state_bucket,
     null_resource.deploy_do_bigip1,
-    null_resource.deploy_do_bigip2,
-    aws_instance.bigip
+    null_resource.deploy_do_bigip2
   ]
   triggers = {
     declaration = jsonencode(local.cfe_declaration)
   }
 
   provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+
     command = <<EOT
-      cat <<'EOF' > cfe_payload1.json
+      set -e
+
+      cat > cfe_payload1.json <<EOF
       ${jsonencode(local.cfe_declaration)}
       EOF
+
+      echo "Pushing CFE Declaration to BIG-IP 1 via Public IP..."
       curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
-           -X POST https://${var.bigip1_mgmt_ip}/mgmt/shared/cloud-failover/declare \
-           -H "Content-type: application/json" \
-           -d @cfe_payload1.json
+        -X POST https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/cloud-failover/declare \
+        -H "Content-Type: application/json" \
+        -d @cfe_payload1.json
+
+      echo "Verifying CFE Declaration on BIG-IP 1 (Per F5 Docs)..."
+      curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
+        -X GET https://${aws_eip.mgmt_eip[0].public_ip}/mgmt/shared/cloud-failover/declare | grep -q '"class":"Cloud_Failover"'
+      
+      echo "BIG-IP 1 CFE Deployed and Verified!"
     EOT
   }
 }
@@ -40,22 +49,33 @@ resource "null_resource" "deploy_cfe_bigip2" {
     aws_vpc_endpoint.s3,
     aws_s3_bucket.cfe_state_bucket,
     null_resource.deploy_do_bigip1,
-    null_resource.deploy_do_bigip2,
-    aws_instance.bigip
+    null_resource.deploy_do_bigip2
   ]
   triggers = {
     declaration = jsonencode(local.cfe_declaration)
   }
 
   provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+
     command = <<EOT
-      cat <<'EOF' > cfe_payload2.json
+      set -e
+
+      cat > cfe_payload2.json <<EOF
       ${jsonencode(local.cfe_declaration)}
       EOF
+
+      echo "Pushing CFE Declaration to BIG-IP 2 via Public IP..."
       curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
-           -X POST https://${var.bigip2_mgmt_ip}/mgmt/shared/cloud-failover/declare \
-           -H "Content-type: application/json" \
-           -d @cfe_payload2.json
+        -X POST https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/cloud-failover/declare \
+        -H "Content-Type: application/json" \
+        -d @cfe_payload2.json
+
+      echo "Verifying CFE Declaration on BIG-IP 2 (Per F5 Docs)..."
+      curl -sk -u '${var.bigip_admin_user}:${var.bigip_admin_password}' \
+        -X GET https://${aws_eip.mgmt_eip[1].public_ip}/mgmt/shared/cloud-failover/declare | grep -q '"class":"Cloud_Failover"'
+      
+      echo "BIG-IP 2 CFE Deployed and Verified!"
     EOT
   }
 }

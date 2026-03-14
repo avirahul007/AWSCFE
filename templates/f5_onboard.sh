@@ -19,7 +19,6 @@ echo "Applying License: ${license_key}"
 for i in {1..10}; do
     tmsh install sys license registration-key ${license_key}
     
-    # Check if the command was successful
     if [ $? -eq 0 ]; then
         echo "License installed successfully on attempt $i!"
         break
@@ -29,33 +28,57 @@ for i in {1..10}; do
     fi
 done
 
-# 4. Download DO and CFE from GitHub
+# 4. Allocate Extra Memory for REST Daemons (CFE/DO Best Practice)
+echo "Allocating extra memory for REST daemons..."
+tmsh modify sys db provision.extramb value 1000 || true
+tmsh modify sys db restjavad.useextramb value true || true
+# For BIG-IP 17.1.x and later:
+tmsh modify sys db provision.restjavad.extramb value 1000 || true
+tmsh save sys config
+
+echo "Restarting restjavad and restnoded..."
+bigstart restart restjavad restnoded
+
+# 5. Download DO and CFE from GitHub
 echo "Downloading DO and CFE packages..."
 mkdir -p /var/config/rest/downloads
 curl -L -o /var/config/rest/downloads/f5-cloud-failover.rpm "${cfe_url}"
 curl -L -o /var/config/rest/downloads/f5-declarative-onboarding.rpm "${do_url}"
 
-# 5. Wait for the REST framework (restjavad) to be fully up
+# 6. Wait for the REST framework (restjavad) to fully reboot
 echo "Waiting for restjavad to start..."
-until curl -s -u admin:${admin_pass} http://localhost:8100/mgmt/shared/echo | grep "build"; do
+until curl -s -u admin:${bigip_admin_password} http://localhost:8100/mgmt/shared/echo | grep "build"; do
     sleep 10
 done
 
-# 6. Install DO and CFE via REST API
+# 7. Install DO and CFE via REST API 
 echo "Installing Extensions..."
 
 # Install Declarative Onboarding (DO)
-curl -u admin:${admin_pass} -X POST http://localhost:8100/mgmt/shared/iapp/package-management-tasks \
-  -d '{
-    "operation": "INSTALL",
-    "packageFilePath": "/var/config/rest/downloads/f5-declarative-onboarding.rpm"
-  }'
+DO_DATA="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/f5-declarative-onboarding.rpm\"}"
+curl -u admin:${bigip_admin_password} -X POST http://localhost:8100/mgmt/shared/iapp/package-management-tasks \
+  -H "Origin: http://localhost:8100" \
+  -H 'Content-Type: application/json;charset=UTF-8' \
+  --data "$DO_DATA"
 
 # Install Cloud Failover Extension (CFE)
-curl -u admin:${admin_pass} -X POST http://localhost:8100/mgmt/shared/iapp/package-management-tasks \
-  -d '{
-    "operation": "INSTALL",
-    "packageFilePath": "/var/config/rest/downloads/f5-cloud-failover.rpm"
-  }'
+CFE_DATA="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/f5-cloud-failover.rpm\"}"
+curl -u admin:${bigip_admin_password} -X POST http://localhost:8100/mgmt/shared/iapp/package-management-tasks \
+  -H "Origin: http://localhost:8100" \
+  -H 'Content-Type: application/json;charset=UTF-8' \
+  --data "$CFE_DATA"
+
+# 8. Verify Installations 
+echo "Verifying DO Installation..."
+until curl -s -u admin:${bigip_admin_password} http://localhost:8100/mgmt/shared/declarative-onboarding/info | grep "version"; do
+    echo "Waiting for DO API to become available..."
+    sleep 10
+done
+
+echo "Verifying CFE Installation..."
+until curl -s -u admin:${bigip_admin_password} http://localhost:8100/mgmt/shared/cloud-failover/info | grep "version"; do
+    echo "Waiting for CFE API to become available..."
+    sleep 10
+done
 
 echo "Onboarding script completed."
