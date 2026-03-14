@@ -1,7 +1,3 @@
-
-
-===========
-
 # Download, Upload, Install, and Verify Packages for BIG-IP 1
 resource "null_resource" "install_packages_bigip1" {
   depends_on = [aws_instance.bigip, aws_eip.mgmt_eip]
@@ -14,9 +10,6 @@ resource "null_resource" "install_packages_bigip1" {
       # Set Variables per F5 Documentation
       CREDS="${var.bigip_admin_user}:${var.bigip_admin_password}"
       IP="${aws_eip.mgmt_eip[0].public_ip}"
-
-      echo "Waiting for BIG-IP 1 REST API to wake up..."
-      until curl -sk -u $CREDS "https://$IP/mgmt/shared/echo" | grep -q "build"; do sleep 15; done
 
       # ---------------------------------------------------------
       # 1. DECLARATIVE ONBOARDING (DO)
@@ -74,10 +67,7 @@ resource "null_resource" "install_packages_bigip2" {
       # Set Variables
       CREDS="${var.bigip_admin_user}:${var.bigip_admin_password}"
       IP="${aws_eip.mgmt_eip[1].public_ip}"
-
-      echo "Waiting for BIG-IP 2 REST API to wake up..."
-      until curl -sk -u $CREDS "https://$IP/mgmt/shared/echo" | grep -q "build"; do sleep 15; done
-
+      
       # We can reuse the locally downloaded RPM files from BIG-IP 1
       FN_DO="f5-declarative-onboarding-1.47.0-14.noarch.rpm"
       LEN_DO=$(wc -c $FN | cut -f 2 -d ' ')

@@ -28,10 +28,38 @@ for i in {1..10}; do
     fi
 done
 
-# Download DO and CFE packages directly to BIG-IP
-echo "Downloading DO and CFE packages locally to BIG-IP..."
+# Prepare Download Directory
+echo "Preparing local download directory..."
+
 cd /var/config/rest/downloads
-curl -sL -o f5-declarative-onboarding-1.47.0-14.noarch.rpm "${do_url}"
-curl -sL -o f5-cloud-failover-2.4.0-0.noarch.rpm "${cfe_url}"
+
+# Robust Download Loop for DO Package
+echo "Downloading DO package from GitHub..."
+for i in {1..5}; do
+    # -L follows redirects, -O saves the remote filename, --fail catches HTTP errors
+    curl -L --fail -O "${do_url}"
+    
+    if [ $? -eq 0 ]; then
+        echo "DO package downloaded successfully!"
+        break
+    else
+        echo "Attempt $i failed to download DO package. Retrying in 15 seconds..."
+        sleep 15
+    fi
+done
+
+# Robust Download Loop for CFE Package
+echo "Downloading CFE package from GitHub..."
+for i in {1..5}; do
+    curl -L --fail -O "${cfe_url}"
+    
+    if [ $? -eq 0 ]; then
+        echo "CFE package downloaded successfully!"
+        break
+    else
+        echo "Attempt $i failed to download CFE package. Retrying in 15 seconds..."
+        sleep 15
+    fi
+done
 
 echo "Base Onboarding script completed. Handing over to Terraform for package installation."
