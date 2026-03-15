@@ -1,0 +1,6 @@
+# Force bash scripts to always use Linux line endings
+*.sh text eol=lf
+
+# Force Terraform files to use standard line endings
+*.tf text eol=lf
+*.json text eol=lf

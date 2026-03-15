@@ -14,20 +14,6 @@ locals {
       }
     }
 
-    failoverRoutes = {
-      enabled = true
-      scopingTags = {
-        f5_cloud_failover_label = var.cfe_label
-      }
-      scopingAddressRanges = [
-        for cidr in var.vip_subnet_ranges : { range = cidr }
-      ]
-      defaultNextHopAddresses = {
-        discoveryType = "static"
-        items = var.bigip_external_self_ips
-      }
-    }
-
     # Controls must be outside failoverRoutes
     controls = {
       class    = "Controls"
@@ -36,10 +22,10 @@ locals {
   }
 }
 
-# Push Configuration to BIG-IP 1
+# Push Configuration to BIG-IP 1 (FIRST)
 resource "null_resource" "deploy_cfe_bigip1" {
   depends_on = [
-    aws_instance.bigip,
+    aws_instance.bigip1, 
     null_resource.deploy_do_bigip1,
     null_resource.deploy_do_bigip2
   ]
@@ -67,12 +53,12 @@ resource "null_resource" "deploy_cfe_bigip1" {
   }
 }
 
-# Push Configuration to BIG-IP 2
+# Push Configuration to BIG-IP 2 (SECOND)
 resource "null_resource" "deploy_cfe_bigip2" {
+  
   depends_on = [
-    aws_instance.bigip,
-    null_resource.deploy_do_bigip1,
-    null_resource.deploy_do_bigip2
+    aws_instance.bigip2,
+    null_resource.deploy_cfe_bigip1 
   ]
   triggers = { declaration = jsonencode(local.cfe_declaration) }
 
