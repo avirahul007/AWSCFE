@@ -11,7 +11,7 @@ wait_bigip_ready
 
 # Set the Admin Password immediately
 echo "Setting Admin Password..."
-tmsh modify auth user admin password '${bigip_admin_password}'
+tmsh modify auth user admin password '${admin_pass}'
 tmsh save sys config
 
 # Apply License with Retry Loop
@@ -37,7 +37,7 @@ cd /var/config/rest/downloads
 echo "Downloading DO package from GitHub..."
 for i in {1..5}; do
     # -L follows redirects, -O saves the remote filename, --fail catches HTTP errors
-    curl -L --fail -O "${do_url}"
+    curl -k -L -O "${do_url}"
     
     if [ $? -eq 0 ]; then
         echo "DO package downloaded successfully!"
@@ -51,7 +51,7 @@ done
 # Robust Download Loop for CFE Package
 echo "Downloading CFE package from GitHub..."
 for i in {1..5}; do
-    curl -L --fail -O "${cfe_url}"
+    curl -k -L -O "${cfe_url}"
     
     if [ $? -eq 0 ]; then
         echo "CFE package downloaded successfully!"

@@ -8,22 +8,30 @@ locals {
     }
 
     failoverAddresses = {
+      enabled = true
       scopingTags = {
-        f5_cloud_failover_label = "my-ha-cluster"
+        f5_cloud_failover_label = var.cfe_label
       }
     }
 
     failoverRoutes = {
+      enabled = true
       scopingTags = {
-        f5_cloud_failover_label = "my-ha-cluster"
+        f5_cloud_failover_label = var.cfe_label
       }
+      scopingAddressRanges = [
+        for cidr in var.vip_subnet_ranges : { range = cidr }
+      ]
       defaultNextHopAddresses = {
         discoveryType = "static"
-        items = [
-          var.bigip_external_self_ips[0],
-          var.bigip_external_self_ips[1]
-        ]
+        items = var.bigip_external_self_ips
       }
+    }
+
+    # Controls must be outside failoverRoutes
+    controls = {
+      class    = "Controls"
+      logLevel = "info"
     }
   }
 }
