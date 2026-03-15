@@ -33,33 +33,5 @@ echo "Preparing local download directory..."
 
 cd /var/config/rest/downloads
 
-# Robust Download Loop for DO Package
-echo "Downloading DO package from GitHub..."
-for i in {1..5}; do
-    # -L follows redirects, -O saves the remote filename, --fail catches HTTP errors
-    curl -k -L -O "${do_url}"
-    
-    if [ $? -eq 0 ]; then
-        echo "DO package downloaded successfully!"
-        break
-    else
-        echo "Attempt $i failed to download DO package. Retrying in 15 seconds..."
-        sleep 15
-    fi
-done
-
-# Robust Download Loop for CFE Package
-echo "Downloading CFE package from GitHub..."
-for i in {1..5}; do
-    curl -k -L -O "${cfe_url}"
-    
-    if [ $? -eq 0 ]; then
-        echo "CFE package downloaded successfully!"
-        break
-    else
-        echo "Attempt $i failed to download CFE package. Retrying in 15 seconds..."
-        sleep 15
-    fi
-done
 
 echo "Base Onboarding script completed. Handing over to Terraform for package installation."
