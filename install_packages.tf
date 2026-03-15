@@ -2,7 +2,7 @@
 # Install Packages on BIG-IP 1 (Active)
 # ==========================================
 resource "null_resource" "install_packages_bigip1" {
-  depends_on = [aws_instance.bigip1]
+  depends_on = [aws_instance.bigip]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -27,7 +27,7 @@ resource "null_resource" "install_packages_bigip1" {
 # Install Packages on BIG-IP 2 (Standby)
 # ==========================================
 resource "null_resource" "install_packages_bigip2" {
-  depends_on = [aws_instance.bigip2]
+  depends_on = [aws_instance.bigip]
 
   provisioner "local-exec" {
     command = <<-EOT

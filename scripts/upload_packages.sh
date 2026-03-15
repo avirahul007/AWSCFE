@@ -1,4 +1,6 @@
 #!/bin/bash
+# Stop execution immediately if any command fails
+set -e 
 
 BIGIP_IP=$1
 CREDS="$2:$3"
@@ -15,19 +17,21 @@ curl -k -L -O "$DO_URL"
 curl -k -L -O "$CFE_URL"
 
 # ---------------------------------------------------------
-# As per F5 Official Documentation
+# F5 Official File Size Calculation - FIXED
+# Using awk automatically strips leading/trailing spaces on Mac & Linux
 # ---------------------------------------------------------
-LEN_DO=$(wc -c $FN_DO | cut -f 1 -d ' ')
-LEN_CFE=$(wc -c $FN_CFE | cut -f 1 -d ' ')
+LEN_DO=$(wc -c "$FN_DO" | awk '{print $1}')
+LEN_CFE=$(wc -c "$FN_CFE" | awk '{print $1}')
 
-# If you are running this from a Mac, only for DO uncomment these two lines instead:
-# LEN_DO=$(wc -c $FN_DO | cut -f 2 -d ' ')
+echo "Calculated DO Size: $LEN_DO bytes"
+echo "Calculated CFE Size: $LEN_CFE bytes"
 
 echo "======================================================"
 echo "--- Uploading & Installing DO to BIG-IP ($BIGIP_IP) ---"
 echo "======================================================"
 
-curl -kvu "$CREDS" "https://$BIGIP_IP/mgmt/shared/file-transfer/uploads/$FN_DO" \
+# Added --fail so curl throws an explicit error if F5 rejects the upload
+curl -kvu "$CREDS" --fail "https://$BIGIP_IP/mgmt/shared/file-transfer/uploads/$FN_DO" \
       -H 'Content-Type: application/octet-stream' \
       -H "Content-Range: 0-$((LEN_DO - 1))/$LEN_DO" \
       -H "Content-Length: $LEN_DO" \
@@ -35,7 +39,7 @@ curl -kvu "$CREDS" "https://$BIGIP_IP/mgmt/shared/file-transfer/uploads/$FN_DO" 
       --data-binary @"$FN_DO"
 
 DATA_DO="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/$FN_DO\"}"
-curl -kvu "$CREDS" "https://$BIGIP_IP/mgmt/shared/iapp/package-management-tasks" \
+curl -kvu "$CREDS" --fail "https://$BIGIP_IP/mgmt/shared/iapp/package-management-tasks" \
       -H "Origin: https://$BIGIP_IP" \
       -H 'Content-Type: application/json;charset=UTF-8' \
       --data "$DATA_DO"
@@ -44,7 +48,7 @@ echo "======================================================"
 echo "--- Uploading & Installing CFE to BIG-IP ($BIGIP_IP) ---"
 echo "======================================================"
 
-curl -kvu "$CREDS" "https://$BIGIP_IP/mgmt/shared/file-transfer/uploads/$FN_CFE" \
+curl -kvu "$CREDS" --fail "https://$BIGIP_IP/mgmt/shared/file-transfer/uploads/$FN_CFE" \
       -H 'Content-Type: application/octet-stream' \
       -H "Content-Range: 0-$((LEN_CFE - 1))/$LEN_CFE" \
       -H "Content-Length: $LEN_CFE" \
@@ -52,7 +56,7 @@ curl -kvu "$CREDS" "https://$BIGIP_IP/mgmt/shared/file-transfer/uploads/$FN_CFE"
       --data-binary @"$FN_CFE"
 
 DATA_CFE="{\"operation\":\"INSTALL\",\"packageFilePath\":\"/var/config/rest/downloads/$FN_CFE\"}"
-curl -kvu "$CREDS" "https://$BIGIP_IP/mgmt/shared/iapp/package-management-tasks" \
+curl -kvu "$CREDS" --fail "https://$BIGIP_IP/mgmt/shared/iapp/package-management-tasks" \
       -H "Origin: https://$BIGIP_IP" \
       -H 'Content-Type: application/json;charset=UTF-8' \
       --data "$DATA_CFE"
